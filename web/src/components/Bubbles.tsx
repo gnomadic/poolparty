@@ -16,7 +16,7 @@ export function Bubbles() {
     canvas.height = 600;
 
     const bubbles: Bubble[] = [];
-    const bubbleCount = Math.floor(window.innerWidth / 30); // Responsive bubble count
+    const bubbleCount = Math.floor(window.innerWidth / 40); // Reduced bubble count
 
     class Bubble {
       x: number;
@@ -25,6 +25,8 @@ export function Bubbles() {
       speedY: number;
       color: string;
       alpha: number;
+      wobble: number;
+      wobbleSpeed: number;
 
       constructor() {
         if (canvas) {
@@ -32,28 +34,32 @@ export function Bubbles() {
           this.y = canvas.height + Math.random() * 100;
         } else {
           this.x = Math.random() * window.innerWidth;
-          this.y = 600 + Math.random() * 100;
+          this.y = window.innerHeight + Math.random() * 100;
         }
-        this.radius = Math.random() * 20 + 10;
-        this.speedY = Math.random() * 2 + 0.5;
-        this.alpha = 0.1 + Math.random() * 0.3; // Semi-transparent
+        this.radius = Math.random() * 15 + 8; // Slightly smaller bubbles
+        this.speedY = Math.random() * 1.5 + 0.3; // Slower movement
+        this.alpha = 0.08 + Math.random() * 0.15; // More transparent
+        this.wobble = 0;
+        this.wobbleSpeed = Math.random() * 0.03 + 0.01;
 
-        // Create pastel colors in the purple/pink palette
-        const hue = Math.random() * 60 + 280; // Range from purple to pink
-        const sat = Math.random() * 40 + 60; // High saturation
-        const light = Math.random() * 20 + 70; // Light colors
+        // Create blue/cyan bubbles for pool theme
+        const hue = Math.random() * 40 + 180; // Range from cyan to blue
+        const sat = Math.random() * 40 + 60;
+        const light = Math.random() * 20 + 70;
         this.color = `hsla(${hue}, ${sat}%, ${light}%, ${this.alpha})`;
       }
 
       update() {
         this.y -= this.speedY;
+        this.wobble += this.wobbleSpeed;
+        this.x += Math.sin(this.wobble) * 0.5; // Add gentle side-to-side motion
 
-        // Reset bubble when it goes off screen
         if (this.y < -this.radius * 2) {
           if (canvas) {
             this.x = Math.random() * canvas.width;
             this.y = canvas.height + this.radius;
           }
+          this.wobble = 0;
         }
       }
 
@@ -61,6 +67,20 @@ export function Bubbles() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
+        ctx.fill();
+
+        // Add shine effect
+        const gradient = ctx.createRadialGradient(
+          this.x - this.radius * 0.3,
+          this.y - this.radius * 0.3,
+          this.radius * 0.1,
+          this.x,
+          this.y,
+          this.radius
+        );
+        gradient.addColorStop(0, `hsla(0, 0%, 100%, ${this.alpha * 2})`);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
         ctx.fill();
       }
     }
@@ -100,7 +120,7 @@ export function Bubbles() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute top-0 left-0 w-full h-[600px] pointer-events-none z-0"
+      className="absolute top-0 left-0 w-full h-[600px] pointer-events-none z-0 opacity-60"
     />
   );
 }
