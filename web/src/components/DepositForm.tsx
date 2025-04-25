@@ -69,7 +69,7 @@ export function DepositForm() {
         {isDeposit && (
           <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg mb-4">
             <p className="text-sm text-purple-700 dark:text-purple-300">
-              By depositing, you'll automatically be entered in all future draws until you withdraw.
+              By depositing, you&apos;ll automatically be entered in all future draws until you withdraw.
               Your deposit is safe and can be withdrawn at any time.
             </p>
           </div>
