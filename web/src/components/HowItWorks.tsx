@@ -1,5 +1,4 @@
 "use client"
-
 import React from 'react';
 import { Wallet, Coins, Award, RefreshCw, ArrowRight } from 'lucide-react';
 

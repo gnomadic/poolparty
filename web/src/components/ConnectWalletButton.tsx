@@ -9,11 +9,9 @@ export function ConnectWalletButton({ mobile = false }: ConnectWalletButtonProps
   const [isConnected, setIsConnected] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
-  // Mock wallet address - in real implementation this would come from wallet connection
   const walletAddress = "0x1234...5678";
   
   const handleConnect = () => {
-    // In a real implementation, this would trigger wallet connection
     setIsConnected(true);
   };
   
@@ -26,7 +24,7 @@ export function ConnectWalletButton({ mobile = false }: ConnectWalletButtonProps
     return (
       <button
         onClick={handleConnect}
-        className={`flex items-center justify-center gap-2 px-4 py-2 font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-full transition-all transform hover:scale-105 shadow-md hover:shadow-lg ${
+        className={`flex items-center justify-center gap-2 px-4 py-2 font-medium text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 rounded-full transition-all transform hover:scale-105 shadow-md hover:shadow-lg ${
           mobile ? 'w-full' : ''
         }`}
       >
@@ -40,7 +38,7 @@ export function ConnectWalletButton({ mobile = false }: ConnectWalletButtonProps
     <div className="relative">
       <button
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className={`flex items-center justify-center gap-2 px-4 py-2 font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-full transition-all shadow-md hover:shadow-lg ${
+        className={`flex items-center justify-center gap-2 px-4 py-2 font-medium text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 rounded-full transition-all shadow-md hover:shadow-lg ${
           mobile ? 'w-full' : ''
         }`}
       >

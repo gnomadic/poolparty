@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Wallet, Moon, Sun } from 'lucide-react';
 import { ConnectWalletButton } from './ConnectWalletButton';
@@ -36,7 +35,7 @@ export function Header() {
     >
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div className="flex items-center">
-          <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400">
+          <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-600 to-blue-400 dark:from-blue-400 dark:to-green-400">
             pool.party
           </span>
         </div>

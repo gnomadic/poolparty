@@ -1,20 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PieChart } from 'lucide-react';
+import { PieChart, Trophy, Users } from 'lucide-react';
 
 type OddsVisualizerProps = {
   currentDeposit: number;
   totalPoolSize: number;
   prizePool: number;
+  totalWinners: number;
 };
 
-export function OddsVisualizer({ currentDeposit, totalPoolSize, prizePool }: OddsVisualizerProps) {
+export function OddsVisualizer({ currentDeposit, totalPoolSize, prizePool, totalWinners }: OddsVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [winChance, setWinChance] = useState(0);
   
   useEffect(() => {
-    // Calculate win chance percentage
-    const chance = (currentDeposit / totalPoolSize) * 100;
-    setWinChance(parseFloat(chance.toFixed(2)));
+    // Calculate win chance percentage (10% of participants win)
+    const chance = 10; // Fixed 10% chance if you participate
+    setWinChance(chance);
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -22,16 +23,14 @@ export function OddsVisualizer({ currentDeposit, totalPoolSize, prizePool }: Odd
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Set canvas dimensions
     canvas.width = 200;
     canvas.height = 200;
     
-    // Draw the odds visualization pie chart
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const radius = 80;
     
-    // Your portion (in purple)
+    // Your win chance (in blue)
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.arc(
@@ -42,10 +41,10 @@ export function OddsVisualizer({ currentDeposit, totalPoolSize, prizePool }: Odd
       (Math.PI * 2) * (chance / 100), 
       false
     );
-    ctx.fillStyle = '#8B5CF6'; // purple-500
+    ctx.fillStyle = '#0EA5E9'; // sky-500
     ctx.fill();
     
-    // Rest of the pool (in gray)
+    // Non-winning portion (in gray)
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.arc(
@@ -70,15 +69,15 @@ export function OddsVisualizer({ currentDeposit, totalPoolSize, prizePool }: Odd
     ctx.font = 'bold 20px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${chance.toFixed(2)}%`, centerX, centerY);
+    ctx.fillText(`${chance}%`, centerX, centerY);
     
   }, [currentDeposit, totalPoolSize]);
   
   return (
     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 flex flex-col items-center">
       <h3 className="text-lg font-medium mb-4 text-gray-800 dark:text-white flex items-center">
-        <PieChart size={20} className="mr-2 text-purple-500" />
-        Your Win Chance
+        <Trophy size={20} className="mr-2 text-cyan-500" />
+        Winning Odds
       </h3>
       
       <div className="mb-4">
@@ -87,23 +86,32 @@ export function OddsVisualizer({ currentDeposit, totalPoolSize, prizePool }: Odd
       
       <div className="w-full space-y-3">
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-400">Your Deposit:</span>
+          <span className="text-gray-600 dark:text-gray-400">Entry Amount:</span>
           <span className="font-medium text-gray-800 dark:text-white">{currentDeposit} ETH</span>
         </div>
         
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-400">Total Pool Size:</span>
+          <span className="text-gray-600 dark:text-gray-400">Prize Pool:</span>
           <span className="font-medium text-gray-800 dark:text-white">{totalPoolSize} ETH</span>
         </div>
         
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-400">Current Prize:</span>
-          <span className="font-medium text-purple-600 dark:text-purple-400">{prizePool} ETH</span>
+          <span className="text-gray-600 dark:text-gray-400">Prize Per Winner:</span>
+          <span className="font-medium text-cyan-600 dark:text-cyan-400">
+            {(prizePool / totalWinners).toFixed(2)} ETH
+          </span>
+        </div>
+        
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600 dark:text-gray-400">Number of Winners:</span>
+          <span className="font-medium text-cyan-600 dark:text-cyan-400">
+            {totalWinners} winners
+          </span>
         </div>
         
         <div className="pt-2 border-t border-gray-200 dark:border-gray-600 mt-2">
           <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-            Deposit more to increase your chances!
+            Top 10% of participants win each week!
           </div>
         </div>
       </div>

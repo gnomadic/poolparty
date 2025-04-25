@@ -74,7 +74,7 @@ export default function RootLayout({
 
   return (
     <html lang='en'>
-      <body className={`min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900 `}>
+      <body className={`min-h-screen bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-gray-900 dark:to-blue-900"`}>
         {/* <Providers> */}
           {/* <SpaceAnimation /> */}
           {/* <Navbar /> */}
