@@ -1,153 +1,161 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./IYieldFarm.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract PoolManager {
+import {IYieldFarm} from "./interfaces/IYieldFarm.sol";
+import {IAaveLendingPool} from "./interfaces/IAaveLendingPool.sol";
+import {PoolTicket} from "./PoolTicket.sol";
+
+contract PoolParty is Ownable, ReentrancyGuard {
     struct Pool {
-        address depositToken;
+        uint256 id;
         uint256 ticketPrice;
-        uint256 timePeriod; // e.g., 168 hours = 1 week
+        uint256 timePeriod;
         address yieldFarm;
         uint256 totalDeposits;
+        uint256 lastDrawTimestamp;
+        bool isActive;
     }
 
-    struct UserInfo {
-        uint256 depositAmount;
-        uint256 winningsAmount;
-    }
-
+    PoolTicket public ticket;
     uint256 public nextPoolId;
     mapping(uint256 => Pool) public pools;
-    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
-    mapping(uint256 => address[]) public poolParticipants;
-    mapping(uint256 => mapping(address => bool)) public hasJoinedPool;
+    mapping(uint256 => mapping(address => uint256)) public deposits;
+    mapping(address => uint256) public pendingWinnings;
 
-    event PoolCreated(uint256 indexed poolId);
-    event Deposit(uint256 indexed poolId, address indexed user, uint256 amount);
-    event Withdrawal(uint256 indexed poolId, address indexed user, uint256 amount);
-    event WinnersDrawn(uint256 indexed poolId, address[] winners);
+    constructor(address _ticket) Ownable(msg.sender) {
+        ticket = PoolTicket(_ticket);
+    }
 
-    // Create a new pool
-    function createPool(address _depositToken, uint256 _ticketPrice, uint256 _timePeriod, address _yieldFarm) external {
+    function createPool(
+        uint256 ticketPrice,
+        uint256 timePeriod,
+        address yieldFarm
+    ) external onlyOwner {
         pools[nextPoolId] = Pool({
-            depositToken: _depositToken,
-            ticketPrice: _ticketPrice,
-            timePeriod: _timePeriod,
-            yieldFarm: _yieldFarm,
-            totalDeposits: 0
+            id: nextPoolId,
+            ticketPrice: ticketPrice,
+            timePeriod: timePeriod,
+            yieldFarm: yieldFarm,
+            totalDeposits: 0,
+            lastDrawTimestamp: block.timestamp,
+            isActive: true
         });
-
         emit PoolCreated(nextPoolId);
         nextPoolId++;
     }
 
-    // Deposit funds into a pool
-    function deposit(uint256 poolId, uint256 amount) external {
+    function deposit(uint256 poolId, uint256 amount) external nonReentrant {
         Pool storage pool = pools[poolId];
+        require(pool.isActive, "Pool not active");
         require(amount >= pool.ticketPrice, "Amount too small");
 
-        IERC20(pool.depositToken).transferFrom(msg.sender, address(this), amount);
+        IYieldFarm(pool.yieldFarm).deposit(amount);
 
-        if (!hasJoinedPool[poolId][msg.sender]) {
-            poolParticipants[poolId].push(msg.sender);
-            hasJoinedPool[poolId][msg.sender] = true;
+        uint256 numTickets = amount / pool.ticketPrice;
+        for (uint256 i = 0; i < numTickets; i++) {
+            ticket.mint(msg.sender, poolId);
         }
 
-        userInfo[poolId][msg.sender].depositAmount += amount;
+        deposits[poolId][msg.sender] += amount;
         pool.totalDeposits += amount;
 
-        // Deposit into the yield farm
-        IYieldFarm(pool.yieldFarm).deposit(pool.depositToken, amount);
-
-        emit Deposit(poolId, msg.sender, amount);
+        emit Deposited(poolId, msg.sender, amount);
     }
 
-    // Withdraw full balance
-    function withdraw(uint256 poolId) external {
+    function withdraw(uint256 poolId, uint256 amount) external nonReentrant {
         Pool storage pool = pools[poolId];
-        UserInfo storage user = userInfo[poolId][msg.sender];
+        require(deposits[poolId][msg.sender] >= amount, "Insufficient balance");
 
-        uint256 totalAmount = user.depositAmount + user.winningsAmount;
-        require(totalAmount > 0, "Nothing to withdraw");
+        IYieldFarm(pool.yieldFarm).withdraw(amount);
+        deposits[poolId][msg.sender] -= amount;
+        pool.totalDeposits -= amount;
 
-        // Withdraw from yield farm if needed (this sends to user directly)
-        IYieldFarm(pool.yieldFarm).withdraw(pool.depositToken, totalAmount);
+        uint256 ticketsToBurn = amount / pool.ticketPrice;
+        _burnUserTickets(msg.sender, poolId, ticketsToBurn);
 
-        user.depositAmount = 0;
-        user.winningsAmount = 0;
-        pool.totalDeposits -= totalAmount;
-
-        emit Withdrawal(poolId, msg.sender, totalAmount);
+        emit Withdrawn(poolId, msg.sender, amount);
     }
 
-    // Draw winners for a pool
-    function drawWinners(uint256 poolId) external {
+    function drawWinners(uint256 poolId) external nonReentrant onlyOwner {
         Pool storage pool = pools[poolId];
-        address[] storage participants = poolParticipants[poolId];
-        uint256 ticketPrice = pool.ticketPrice;
+        require(
+            block.timestamp >= pool.lastDrawTimestamp + pool.timePeriod,
+            "Too early"
+        );
 
-        require(participants.length > 0, "No participants");
+        uint256 yield = IYieldFarm(pool.yieldFarm).totalYield();
+        uint256 bonus = (yield * 99) / 100;
+        uint256 treasury = yield - bonus;
 
-        uint256 totalTickets = _getTotalTickets(poolId, ticketPrice);
-        require(totalTickets > 0, "No tickets");
+        uint256 winnersCount = ticket.totalSupply() / 10;
+        if (winnersCount == 0) return;
 
-        // Pull total yield available
-        uint256 totalYield = IYieldFarm(pool.yieldFarm).getBalance(pool.depositToken) - pool.totalDeposits;
-        require(totalYield > 0, "No yield");
-
-        uint256 numWinners = (totalTickets * 10) / 100; // 10% winners
-        if (numWinners == 0) {
-            numWinners = 1; // At least one winner
+        for (uint256 i = 0; i < winnersCount; i++) {
+            uint256 randomTokenId = uint256(
+                keccak256(
+                    abi.encodePacked(block.timestamp, block.prevrandao, i)
+                )
+            ) % ticket.totalSupply();
+            address winner = ticket.ownerOf(randomTokenId);
+            pendingWinnings[winner] += bonus / winnersCount;
         }
 
-        address[] memory winners = new address[](numWinners);
-
-        uint256 nonce = 0;
-        for (uint256 i = 0; i < numWinners; i++) {
-            uint256 winningTicket = _random(totalTickets, nonce);
-            address winner = _findTicketOwner(poolId, winningTicket, ticketPrice);
-            winners[i] = winner;
-            nonce++;
-        }
-
-        // Distribute yield evenly among winners
-        uint256 rewardPerWinner = totalYield / numWinners;
-        for (uint256 i = 0; i < winners.length; i++) {
-            userInfo[poolId][winners[i]].winningsAmount += rewardPerWinner;
-        }
-
-        emit WinnersDrawn(poolId, winners);
+        pool.lastDrawTimestamp = block.timestamp;
+        emit WinnersDrawn(poolId);
     }
 
-    // ---- INTERNAL HELPERS ----
+    function claimWinnings() external nonReentrant {
+        uint256 amount = pendingWinnings[msg.sender];
+        require(amount > 0, "No winnings to claim");
+        pendingWinnings[msg.sender] = 0;
+        (bool sent, ) = msg.sender.call{value: amount}("");
+        require(sent, "Claim failed");
 
-    function _getTotalTickets(uint256 poolId, uint256 ticketPrice) internal view returns (uint256 totalTickets) {
-        address[] storage participants = poolParticipants[poolId];
-        for (uint256 i = 0; i < participants.length; i++) {
-            totalTickets += userInfo[poolId][participants[i]].depositAmount / ticketPrice;
-        }
+        emit Claimed(msg.sender, amount);
     }
 
-    function _findTicketOwner(uint256 poolId, uint256 winningTicket, uint256 ticketPrice) internal view returns (address) {
-        address[] storage participants = poolParticipants[poolId];
-        uint256 currentTicket = 0;
+    function _burnUserTickets(
+        address user,
+        uint256 poolId,
+        uint256 ticketsToBurn
+    ) internal {
+        uint256 burned = 0;
+        uint256 supply = ticket.totalSupply();
 
-        for (uint256 i = 0; i < participants.length; i++) {
-            address participant = participants[i];
-            uint256 userTickets = userInfo[poolId][participant].depositAmount / ticketPrice;
-
-            if (winningTicket < currentTicket + userTickets) {
-                return participant;
+        for (uint256 i = 0; i < supply && burned < ticketsToBurn; i++) {
+            uint256 tokenId = ticket.tokenByIndex(i);
+            if (
+                ticket.ownerOf(tokenId) == user &&
+                ticket.ticketToPool(tokenId) == poolId
+            ) {
+                ticket.burn(tokenId);
+                burned++;
             }
-            currentTicket += userTickets;
         }
-
-        revert("No ticket owner found");
     }
 
-    function _random(uint256 max, uint256 nonce) internal view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, msg.sender, nonce))) % max;
+    receive() external payable {
+        require(false, "Do Not Transfer");
     }
+
+    // ---------------  Events ---------------
+
+    event PoolCreated(uint256 indexed poolId);
+    event Deposited(
+        uint256 indexed poolId,
+        address indexed user,
+        uint256 amount
+    );
+    event Withdrawn(
+        uint256 indexed poolId,
+        address indexed user,
+        uint256 amount
+    );
+    event WinnersDrawn(uint256 indexed poolId);
+    event Claimed(address indexed user, uint256 amount);
 }
